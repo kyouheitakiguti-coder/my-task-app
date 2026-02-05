@@ -57,6 +57,9 @@ def calculate_priority_score(deadline, duration):
 if "tasks_df" not in st.session_state:
     st.session_state.tasks_df = load_tasks()
 
+if "edit_mode" not in st.session_state:
+    st.session_state.edit_mode = None
+
 st.title("🎯 スマートデイリープランナー")
 
 st.sidebar.header("📝 新規追加")
@@ -133,23 +136,51 @@ if not st.session_state.tasks_df.empty:
         df_events_today = df_events_today.sort_values("期日")
         
         for idx, (original_idx, row) in enumerate(df_events_today.iterrows(), 1):
-            with st.container():
-                col1, col2, col3 = st.columns([0.5, 7, 1.5])
-                
-                with col1:
-                    st.markdown(f"**{idx}**")
-                
-                with col2:
-                    st.markdown(f"### 📌 {row['タスク名']}")
-                    st.write(f"📂 {row['カテゴリ']} | ⏰ {row['期日'].strftime('%H:%M')}")
-                
-                with col3:
-                    if st.button("🗑️", key=f"del_event_today_{original_idx}"):
-                        st.session_state.tasks_df = st.session_state.tasks_df.drop(original_idx).reset_index(drop=True)
-                        save_tasks(st.session_state.tasks_df)
-                        st.rerun()
-                
-                st.divider()
+            if st.session_state.edit_mode == f"event_today_{original_idx}":
+                with st.form(key=f"edit_form_event_today_{original_idx}"):
+                    st.markdown("### ✏️ 編集中")
+                    edit_name = st.text_input("名前", value=row["タスク名"])
+                    edit_date = st.date_input("日付", value=row["期日"].date())
+                    edit_time = st.time_input("開始時刻", value=row["期日"].time())
+                    edit_category = st.selectbox("カテゴリ", ["仕事", "プライベート", "学習", "健康", "その他"], 
+                                                 index=["仕事", "プライベート", "学習", "健康", "その他"].index(row["カテゴリ"]))
+                    
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        if st.form_submit_button("💾 保存", use_container_width=True):
+                            st.session_state.tasks_df.loc[original_idx, "タスク名"] = edit_name
+                            st.session_state.tasks_df.loc[original_idx, "期日"] = datetime.combine(edit_date, edit_time)
+                            st.session_state.tasks_df.loc[original_idx, "カテゴリ"] = edit_category
+                            save_tasks(st.session_state.tasks_df)
+                            st.session_state.edit_mode = None
+                            st.rerun()
+                    with col2:
+                        if st.form_submit_button("❌ キャンセル", use_container_width=True):
+                            st.session_state.edit_mode = None
+                            st.rerun()
+            else:
+                with st.container():
+                    col1, col2, col3, col4 = st.columns([0.5, 6, 1, 1])
+                    
+                    with col1:
+                        st.markdown(f"**{idx}**")
+                    
+                    with col2:
+                        st.markdown(f"### 📌 {row['タスク名']}")
+                        st.write(f"📂 {row['カテゴリ']} | ⏰ {row['期日'].strftime('%H:%M')}")
+                    
+                    with col3:
+                        if st.button("✏️", key=f"edit_event_today_{original_idx}"):
+                            st.session_state.edit_mode = f"event_today_{original_idx}"
+                            st.rerun()
+                    
+                    with col4:
+                        if st.button("🗑️", key=f"del_event_today_{original_idx}"):
+                            st.session_state.tasks_df = st.session_state.tasks_df.drop(original_idx).reset_index(drop=True)
+                            save_tasks(st.session_state.tasks_df)
+                            st.rerun()
+                    
+                    st.divider()
     else:
         st.info("今日の予定はありません")
 else:
@@ -172,37 +203,67 @@ if not st.session_state.tasks_df.empty:
         top_tasks = df_pending.head(3)
         
         for idx, (original_idx, row) in enumerate(top_tasks.iterrows(), 1):
-            time_left = row["期日"] - datetime.now()
-            hours_left = time_left.total_seconds() / 3600
-            
-            if hours_left < 0:
-                color = "🔴"
-                urgency_text = "**期限切れ！**"
-            elif hours_left < 24:
-                color = "🟠"
-                urgency_text = f"残り {int(hours_left)}時間"
-            elif hours_left < 48:
-                color = "🟡"
-                urgency_text = f"残り {int(hours_left / 24)}日"
+            if st.session_state.edit_mode == f"top_task_{original_idx}":
+                with st.form(key=f"edit_form_top_{original_idx}"):
+                    st.markdown("### ✏️ 編集中")
+                    edit_name = st.text_input("タスク名", value=row["タスク名"])
+                    edit_duration = st.number_input("所要時間（分）", min_value=5, max_value=480, value=int(row["所要時間"]), step=5)
+                    edit_date = st.date_input("期日（日付）", value=row["期日"].date())
+                    edit_time = st.time_input("期日（時刻）", value=row["期日"].time())
+                    edit_category = st.selectbox("カテゴリ", ["仕事", "プライベート", "学習", "健康", "その他"], 
+                                                 index=["仕事", "プライベート", "学習", "健康", "その他"].index(row["カテゴリ"]))
+                    
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        if st.form_submit_button("💾 保存", use_container_width=True):
+                            st.session_state.tasks_df.loc[original_idx, "タスク名"] = edit_name
+                            st.session_state.tasks_df.loc[original_idx, "所要時間"] = edit_duration
+                            st.session_state.tasks_df.loc[original_idx, "期日"] = datetime.combine(edit_date, edit_time)
+                            st.session_state.tasks_df.loc[original_idx, "カテゴリ"] = edit_category
+                            save_tasks(st.session_state.tasks_df)
+                            st.session_state.edit_mode = None
+                            st.rerun()
+                    with col2:
+                        if st.form_submit_button("❌ キャンセル", use_container_width=True):
+                            st.session_state.edit_mode = None
+                            st.rerun()
             else:
-                color = "🟢"
-                urgency_text = f"残り {int(hours_left / 24)}日"
-            
-            with st.container():
-                col1, col2, col3 = st.columns([0.5, 5, 2])
+                time_left = row["期日"] - datetime.now()
+                hours_left = time_left.total_seconds() / 3600
                 
-                with col1:
-                    st.markdown(f"## {idx}")
+                if hours_left < 0:
+                    color = "🔴"
+                    urgency_text = "**期限切れ！**"
+                elif hours_left < 24:
+                    color = "🟠"
+                    urgency_text = f"残り {int(hours_left)}時間"
+                elif hours_left < 48:
+                    color = "🟡"
+                    urgency_text = f"残り {int(hours_left / 24)}日"
+                else:
+                    color = "🟢"
+                    urgency_text = f"残り {int(hours_left / 24)}日"
                 
-                with col2:
-                    st.markdown(f"### {color} {row['タスク名']}")
-                    st.write(f"📂 {row['カテゴリ']} | ⏱️ {row['所要時間']}分 | 📅 {row['期日'].strftime('%m/%d %H:%M')}")
-                
-                with col3:
-                    st.metric("優先度スコア", f"{row['優先度スコア']:.1f}")
-                    st.caption(urgency_text)
-                
-                st.divider()
+                with st.container():
+                    col1, col2, col3, col4 = st.columns([0.5, 4.5, 2, 0.5])
+                    
+                    with col1:
+                        st.markdown(f"## {idx}")
+                    
+                    with col2:
+                        st.markdown(f"### {color} {row['タスク名']}")
+                        st.write(f"📂 {row['カテゴリ']} | ⏱️ {row['所要時間']}分 | 📅 {row['期日'].strftime('%m/%d %H:%M')}")
+                    
+                    with col3:
+                        st.metric("優先度スコア", f"{row['優先度スコア']:.1f}")
+                        st.caption(urgency_text)
+                    
+                    with col4:
+                        if st.button("✏️", key=f"edit_top_task_{original_idx}"):
+                            st.session_state.edit_mode = f"top_task_{original_idx}"
+                            st.rerun()
+                    
+                    st.divider()
     else:
         st.success("🎉 すべてのタスクが完了しています！")
 else:
@@ -232,26 +293,56 @@ with tab1:
                 for original_idx in df_pending.index:
                     row = st.session_state.tasks_df.loc[original_idx]
                     
-                    col1, col2, col3 = st.columns([0.5, 6, 1.5])
-                    
-                    with col1:
-                        completed = st.checkbox("", key=f"check_{original_idx}", value=False)
-                        if completed:
-                            st.session_state.tasks_df.loc[original_idx, "完了"] = True
-                            save_tasks(st.session_state.tasks_df)
-                            st.rerun()
-                    
-                    with col2:
-                        st.markdown(f"**{row['タスク名']}**")
-                        st.caption(f"📂 {row['カテゴリ']} | ⏱️ {row['所要時間']}分 | 📅 {row['期日'].strftime('%Y/%m/%d %H:%M')}")
-                    
-                    with col3:
-                        if st.button("🗑️", key=f"del_{original_idx}"):
-                            st.session_state.tasks_df = st.session_state.tasks_df.drop(original_idx).reset_index(drop=True)
-                            save_tasks(st.session_state.tasks_df)
-                            st.rerun()
-                    
-                    st.divider()
+                    if st.session_state.edit_mode == f"pending_{original_idx}":
+                        with st.form(key=f"edit_form_pending_{original_idx}"):
+                            st.markdown("### ✏️ 編集中")
+                            edit_name = st.text_input("タスク名", value=row["タスク名"])
+                            edit_duration = st.number_input("所要時間（分）", min_value=5, max_value=480, value=int(row["所要時間"]), step=5)
+                            edit_date = st.date_input("期日（日付）", value=row["期日"].date())
+                            edit_time = st.time_input("期日（時刻）", value=row["期日"].time())
+                            edit_category = st.selectbox("カテゴリ", ["仕事", "プライベート", "学習", "健康", "その他"], 
+                                                         index=["仕事", "プライベート", "学習", "健康", "その他"].index(row["カテゴリ"]))
+                            
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                if st.form_submit_button("💾 保存", use_container_width=True):
+                                    st.session_state.tasks_df.loc[original_idx, "タスク名"] = edit_name
+                                    st.session_state.tasks_df.loc[original_idx, "所要時間"] = edit_duration
+                                    st.session_state.tasks_df.loc[original_idx, "期日"] = datetime.combine(edit_date, edit_time)
+                                    st.session_state.tasks_df.loc[original_idx, "カテゴリ"] = edit_category
+                                    save_tasks(st.session_state.tasks_df)
+                                    st.session_state.edit_mode = None
+                                    st.rerun()
+                            with col2:
+                                if st.form_submit_button("❌ キャンセル", use_container_width=True):
+                                    st.session_state.edit_mode = None
+                                    st.rerun()
+                    else:
+                        col1, col2, col3, col4 = st.columns([0.5, 5.5, 1, 1])
+                        
+                        with col1:
+                            completed = st.checkbox("", key=f"check_{original_idx}", value=False)
+                            if completed:
+                                st.session_state.tasks_df.loc[original_idx, "完了"] = True
+                                save_tasks(st.session_state.tasks_df)
+                                st.rerun()
+                        
+                        with col2:
+                            st.markdown(f"**{row['タスク名']}**")
+                            st.caption(f"📂 {row['カテゴリ']} | ⏱️ {row['所要時間']}分 | 📅 {row['期日'].strftime('%Y/%m/%d %H:%M')}")
+                        
+                        with col3:
+                            if st.button("✏️", key=f"edit_pending_{original_idx}"):
+                                st.session_state.edit_mode = f"pending_{original_idx}"
+                                st.rerun()
+                        
+                        with col4:
+                            if st.button("🗑️", key=f"del_{original_idx}"):
+                                st.session_state.tasks_df = st.session_state.tasks_df.drop(original_idx).reset_index(drop=True)
+                                save_tasks(st.session_state.tasks_df)
+                                st.rerun()
+                        
+                        st.divider()
             else:
                 st.info("未完了のタスクはありません")
         else:
@@ -299,22 +390,50 @@ with tab1:
                 for original_idx in df_events.index:
                     row = st.session_state.tasks_df.loc[original_idx]
                     
-                    col1, col2, col3 = st.columns([0.5, 6, 1.5])
-                    
-                    with col1:
-                        st.markdown("📌")
-                    
-                    with col2:
-                        st.markdown(f"**{row['タスク名']}**")
-                        st.caption(f"📂 {row['カテゴリ']} | 📅 {row['期日'].strftime('%Y/%m/%d %H:%M')}")
-                    
-                    with col3:
-                        if st.button("🗑️", key=f"del_event_{original_idx}"):
-                            st.session_state.tasks_df = st.session_state.tasks_df.drop(original_idx).reset_index(drop=True)
-                            save_tasks(st.session_state.tasks_df)
-                            st.rerun()
-                    
-                    st.divider()
+                    if st.session_state.edit_mode == f"event_{original_idx}":
+                        with st.form(key=f"edit_form_event_{original_idx}"):
+                            st.markdown("### ✏️ 編集中")
+                            edit_name = st.text_input("名前", value=row["タスク名"])
+                            edit_date = st.date_input("日付", value=row["期日"].date())
+                            edit_time = st.time_input("開始時刻", value=row["期日"].time())
+                            edit_category = st.selectbox("カテゴリ", ["仕事", "プライベート", "学習", "健康", "その他"], 
+                                                         index=["仕事", "プライベート", "学習", "健康", "その他"].index(row["カテゴリ"]))
+                            
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                if st.form_submit_button("💾 保存", use_container_width=True):
+                                    st.session_state.tasks_df.loc[original_idx, "タスク名"] = edit_name
+                                    st.session_state.tasks_df.loc[original_idx, "期日"] = datetime.combine(edit_date, edit_time)
+                                    st.session_state.tasks_df.loc[original_idx, "カテゴリ"] = edit_category
+                                    save_tasks(st.session_state.tasks_df)
+                                    st.session_state.edit_mode = None
+                                    st.rerun()
+                            with col2:
+                                if st.form_submit_button("❌ キャンセル", use_container_width=True):
+                                    st.session_state.edit_mode = None
+                                    st.rerun()
+                    else:
+                        col1, col2, col3, col4 = st.columns([0.5, 5.5, 1, 1])
+                        
+                        with col1:
+                            st.markdown("📌")
+                        
+                        with col2:
+                            st.markdown(f"**{row['タスク名']}**")
+                            st.caption(f"📂 {row['カテゴリ']} | 📅 {row['期日'].strftime('%Y/%m/%d %H:%M')}")
+                        
+                        with col3:
+                            if st.button("✏️", key=f"edit_event_{original_idx}"):
+                                st.session_state.edit_mode = f"event_{original_idx}"
+                                st.rerun()
+                        
+                        with col4:
+                            if st.button("🗑️", key=f"del_event_{original_idx}"):
+                                st.session_state.tasks_df = st.session_state.tasks_df.drop(original_idx).reset_index(drop=True)
+                                save_tasks(st.session_state.tasks_df)
+                                st.rerun()
+                        
+                        st.divider()
             else:
                 st.info("予定がありません")
         else:
@@ -381,25 +500,4 @@ with tab2:
                     if current_date == datetime.now().date():
                         st.markdown(f"**:blue[{day}]**")
                     else:
-                        st.markdown(f"{day}")
-                    
-                    if task_count > 0:
-                        st.markdown(f":red[● {task_count}件]")
-                    if event_count > 0:
-                        st.markdown(f":green[📌 {event_count}件]")
-                    
-                    if task_count > 0 or event_count > 0:
-                        with st.expander("詳細"):
-                            if event_count > 0:
-                                st.markdown("**予定:**")
-                                for _, event in events.iterrows():
-                                    st.markdown(f"📌 {event['タスク名']}")
-                                    st.caption(f"{event['期日'].strftime('%H:%M')}")
-                                    st.divider()
-                            
-                            if task_count > 0:
-                                st.markdown("**タスク:**")
-                                for _, task in pending_tasks.iterrows():
-                                    st.markdown(f"● {task['タスク名']}")
-                                    st.caption(f"{task['期日'].strftime('%H:%M')} | {task['所要時間']}分")
-                                    st.divider()
+                        st.markdown(f"{day}
