@@ -1,4 +1,4 @@
-# app.py
+
 import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
@@ -285,7 +285,7 @@ with tab2:
 # フッター
 st.markdown("---")
 st.caption("💡 優先度スコアは、期日までの残り時間と所要時間から自動計算されます")
-```
+
 
 ---
 
